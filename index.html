@@ -36,6 +36,8 @@ img.fg{display:block;max-width:100%;max-height:46vh;margin:8px auto;border-radiu
 .ans{margin-top:12px;padding:12px;border-left:4px solid var(--ac);background:rgba(27,109,140,.1);border-radius:6px}
 .ans .e{color:var(--mut);font-size:14px;margin-top:6px}
 .st{font-size:13px;color:var(--mut)}
+.refs{margin-top:12px}.refs a{display:block;color:inherit;text-decoration:none;margin:6px 0}
+img.pg{display:block;width:100%;border:1px solid var(--bd);border-radius:8px;background:#fff}
 table{border-collapse:collapse;width:100%;font-size:14px}th,td{padding:7px 6px;border-bottom:1px solid var(--bd);text-align:right}
 th:first-child,td:first-child{text-align:left}tr.me td{font-weight:700;color:var(--ac)}
 .scroll{overflow-x:auto}
@@ -172,7 +174,7 @@ function vQuiz(){
   if(q.o){body=S.opts.map((o,k)=>{let c="";if(S.shown){if(o[1])c="ok";else if(S.picked===k)c="ng"}return`<button class="btn ${c}" data-a="pickopt" data-k="${k}" ${S.shown?"disabled":""}>${esc(o[0])}</button>`}).join("")}
   else if(!S.shown)body=`<button class="btn p" data-a="show">答えを表示</button>`;
   let ans="";
-  if(S.shown)ans=`<div class="ans"><b>${esc(q.a)}</b>${q.e?`<div class="e">${esc(q.e)}</div>`:""}</div>`;
+  if(S.shown)ans=`<div class="ans"><b>${esc(q.a)}</b>${q.e?`<div class="e">${esc(q.e)}</div>`:""}</div>`+refsOf(q);
   let foot="";
   if(S.shown){
     if(q.o)foot=`<button class="btn p" data-a="next">${S.i+1<S.list.length?"次の問題へ":"結果を見る"}</button>`;
@@ -181,6 +183,11 @@ function vQuiz(){
   return`<div class="top"><button class="link" data-a="quit">‹ やめる</button><div class="grow st" style="text-align:right">${S.i+1} / ${S.list.length} ・ ${syncTag()}</div></div>
   <div class="bar"><i style="width:${S.i/S.list.length*100}%"></i></div>
   <div class="card"><div class="st">${tag} ${esc(SECS[q.sec])}${q.s?" ・ "+esc(q.s):""}</div><div class="q">${esc(q.q)}</div>${q.i?`<img class="fg" src="figs/${q.i}.jpg" alt="図">`:""}${body}${ans}</div>${foot}`}
+/* 解説: まとめPDF(Ver2)の該当ページの図表を添付 */
+function refsOf(q){
+  if(!q.p||!q.p.length)return"";
+  const pg=n=>"pages/p"+String(n).padStart(2,"0")+".jpg";
+  return`<div class="refs"><div class="st">📖 まとめ(Ver2)の該当ページ ・ タップで拡大</div>${q.p.map(n=>`<a href="${pg(n)}" target="_blank" rel="noopener"><div class="st">p.${n}</div><img class="pg" loading="lazy" src="${pg(n)}" alt="まとめ p.${n}"></a>`).join("")}</div>`}
 function answer(ok){
   const q=S.list[S.i];record(q.id,ok);S.judged=true;
   if(ok)S.ok++;else{S.ng++;S.wrong.push(q)}
