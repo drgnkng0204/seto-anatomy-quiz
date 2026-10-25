@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="瀬藤クイズ"><meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#1b6d8c"><title>瀬藤分 解剖学クイズ</title>
+<style>
+:root{--bg:#f4f6f8;--fg:#1c2128;--card:#fff;--bd:#dde2e8;--ac:#1b6d8c;--ok:#1a7f45;--ng:#c0392b;--mut:#667085}
+@media(prefers-color-scheme:dark){:root{--bg:#12151a;--fg:#e8eaee;--card:#1d2229;--bd:#2c343e;--mut:#9aa3af;--ac:#4aa8c9}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--fg);font:17px/1.7 -apple-system,"Hiragino Sans",sans-serif;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+#app{max-width:720px;margin:0 auto;padding:16px}
+h1{font-size:22px;margin:8px 0 2px}h2{font-size:18px;margin:0 0 8px}
+.sub{color:var(--mut);font-size:14px;margin:0 0 12px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:16px;margin:12px 0}
+button,select,input{font:inherit;color:var(--fg)}
+.btn{display:block;width:100%;min-height:48px;padding:10px 14px;margin:8px 0;border-radius:12px;border:1px solid var(--bd);background:var(--card);text-align:left;cursor:pointer}
+.btn.p{background:var(--ac);border-color:var(--ac);color:#fff;text-align:center;font-weight:600}
+.btn.ok{border-color:var(--ok);background:rgba(26,127,69,.16)}.btn.ng{border-color:var(--ng);background:rgba(192,57,43,.16)}
+.row{display:flex;gap:10px}.row>*{flex:1}
+.gbtn{min-height:56px;font-weight:700;border-radius:12px;border:0;color:#fff;cursor:pointer}
+.gok{background:var(--ok)}.gng{background:var(--ng)}
+input[type=text],select{width:100%;min-height:46px;padding:8px 12px;border:1px solid var(--bd);border-radius:10px;background:var(--card)}
+.radio{display:flex;gap:10px;align-items:flex-start;padding:10px;border:1px solid var(--bd);border-radius:12px;margin:8px 0;cursor:pointer}
+.radio.sel{border-color:var(--ac);background:rgba(27,109,140,.12)}
+.radio b{display:block}.radio small{color:var(--mut)}
+.tag{font-size:12px;padding:2px 8px;border-radius:99px;border:1px solid var(--bd);color:var(--mut)}
+.tag.ok{color:var(--ok);border-color:var(--ok)}.tag.err{color:var(--ng);border-color:var(--ng)}
+.top{display:flex;align-items:center;gap:10px;margin-bottom:6px}.top .grow{flex:1}
+.link{background:none;border:0;color:var(--ac);padding:8px 4px;cursor:pointer;font-size:15px}
+.bar{height:10px;background:var(--bd);border-radius:99px;overflow:hidden}.bar i{display:block;height:100%;background:var(--ok)}
+.bar.w i{background:var(--ng)}
+.q{font-size:19px;line-height:1.75;margin:6px 0 10px}
+.src{color:var(--mut);font-size:13px}
+img.fg{display:block;max-width:100%;max-height:46vh;margin:8px auto;border-radius:8px;background:#fff}
+.ans{margin-top:12px;padding:12px;border-left:4px solid var(--ac);background:rgba(27,109,140,.1);border-radius:6px}
+.ans .e{color:var(--mut);font-size:14px;margin-top:6px}
+.st{font-size:13px;color:var(--mut)}
+table{border-collapse:collapse;width:100%;font-size:14px}th,td{padding:7px 6px;border-bottom:1px solid var(--bd);text-align:right}
+th:first-child,td:first-child{text-align:left}tr.me td{font-weight:700;color:var(--ac)}
+.scroll{overflow-x:auto}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#222;color:#fff;padding:10px 18px;border-radius:99px;font-size:15px;opacity:0;transition:.25s;pointer-events:none;z-index:9}
+.toast.on{opacity:.95}
+</style></head><body><div id="app"></div><div class="toast" id="toast"></div>
+<script src="data.js"></script>
+<script>
+/* ===== 設定 ===== */
+const CLOUD={projectId:"anatomy-quiz-d00f3c",apiKey:"AIzaSyAxZyRb4cQ3TlflZEMpRyZcxcWC0eEURCo"};
+const COL={p:"seto_profiles",r:"seto_records"};   // Firestoreのコレクション名
+const NEED=2;                                     // 不正解の問題は、あと何回正解すれば正解扱いか
+const D=window.QDATA,SECS=D.map(s=>s.t);
+const ALL=D.flatMap((s,si)=>s.q.map(q=>Object.assign({sec:si},q)));
+const BYID=Object.fromEntries(ALL.map(q=>[q.id,q]));
+
+/* ===== 小物 ===== */
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
+const pct=(a,b)=>b?Math.round(a/b*100):0;
+const LS={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+let toastT=0;function toast(m){const t=$("toast");t.textContent=m;t.classList.add("on");clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove("on"),1800)}
+const rid=()=>{const a=new Uint8Array(20);crypto.getRandomValues(a);return[...a].map(b=>"abcdefghijklmnopqrstuvwxyz0123456789"[b%36]).join("")};
+
+/* ===== Firestore (REST) ===== */
+const FB=`https://firestore.googleapis.com/v1/projects/${CLOUD.projectId}/databases/(default)/documents`,KEY="key="+encodeURIComponent(CLOUD.apiKey);
+async function fsGet(p){const r=await fetch(`${FB}/${p}?${KEY}`);if(r.status===404)return null;if(!r.ok)throw new Error("HTTP "+r.status);return r.json()}
+async function fsList(p){const r=await fetch(`${FB}/${p}?pageSize=300&${KEY}`);if(!r.ok)throw new Error("HTTP "+r.status);return r.json()}
+async function fsSet(p,o){const fields={};for(const k in o)fields[k]={stringValue:String(o[k])};
+  const r=await fetch(`${FB}/${p}?${KEY}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({fields})});if(!r.ok)throw new Error("HTTP "+r.status)}
+const fv=(d,k)=>d&&d.fields&&d.fields[k]&&d.fields[k].stringValue!=null?d.fields[k].stringValue:"";
+
+/* ===== 記録 =====
+ rec[id]={s:"c"|"w", need, n, t}   c=正解扱い  w=不正解(あと need 回の正解で正解扱い)  記録なし=未回答 */
+let users=LS.get("sq.users",[]),usersState="load",cur=null,rec={},dirty=false,flushing=false,flushT=0,syncState="ok";
+function record(id,ok){
+  const r=rec[id]||(rec[id]={s:"",need:0,n:0,t:0});r.n++;r.t=Date.now();
+  if(ok){if(r.s==="w"){r.need--;if(r.need<=0){r.s="c";r.need=0}}else r.s="c"}
+  else{r.s="w";r.need=NEED}
+  save();
+}
+function metrics(R){
+  const m={tot:ALL.length,seen:0,c:0,w:0,att:0,hit:0,secs:D.map(()=>[0,0,0])};   // secs: [解答済,正解扱い,問題数]
+  ALL.forEach(q=>{const r=R[q.id],s=m.secs[q.sec];s[2]++;if(r){m.seen++;s[0]++;m.att+=r.n||0;if(r.s==="c"){m.c++;s[1]++}else if(r.s==="w")m.w++}});
+  return m}
+const wrongOf=R=>ALL.filter(q=>R[q.id]&&R[q.id].s==="w");
+function mergeRec(a,b){const o=Object.assign({},a);for(const k in b)if(!o[k]||(b[k].t||0)>(o[k].t||0))o[k]=b[k];return o}
+
+const SYNC={ok:"保存済み",saving:"保存中…",err:"未保存(再試行します)",off:"オフライン"};
+function setSync(s){syncState=s;document.querySelectorAll(".syncst").forEach(e=>{e.className="tag syncst "+(s==="ok"?"ok":s==="err"?"err":"");e.textContent=SYNC[s]})}
+const syncTag=()=>`<span class="tag syncst ${syncState==="ok"?"ok":syncState==="err"?"err":""}">${SYNC[syncState]}</span>`;
+function save(){LS.set("sq.rec."+cur.pid,rec);dirty=true;setSync("saving");clearTimeout(flushT);flushT=setTimeout(flush,1000)}
+async function flush(){
+  clearTimeout(flushT);if(!cur||!dirty)return true;if(flushing)return false;
+  flushing=true;const u=cur;dirty=false;setSync("saving");let ok=true;
+  try{
+    const doc=await fsGet(COL.r+"/"+u.pid);
+    if(doc){try{rec=mergeRec(rec,JSON.parse(fv(doc,"data")))}catch(e){}}
+    const now=new Date().toISOString(),st=metrics(rec);
+    await fsSet(COL.r+"/"+u.pid,{data:JSON.stringify(rec),updated:now});
+    await fsSet(COL.p+"/"+u.pid,{name:u.name,stats:JSON.stringify(st),updated:now,hidden:"0"});
+    u.st=st;u.updated=now;LS.set("sq.rec."+u.pid,rec);setSync(dirty?"saving":"ok");
+  }catch(e){dirty=true;ok=false;setSync("err");flushT=setTimeout(flush,8000)}
+  finally{flushing=false}
+  if(ok&&dirty)flushT=setTimeout(flush,300);
+  return ok}
+addEventListener("online",()=>{if(dirty)flush()});
+document.addEventListener("visibilitychange",()=>{if(document.hidden&&dirty)flush()});
+
+/* ===== ユーザー ===== */
+function parseUser(d){let st=null;try{st=JSON.parse(fv(d,"stats"))}catch(e){}return{pid:d.name.split("/").pop(),name:fv(d,"name")||"?",updated:fv(d,"updated"),st}}
+const byName=(a,b)=>a.name.localeCompare(b.name,"ja",{numeric:true});
+async function loadUsers(){
+  usersState="load";if(view==="users"||view==="compare")render();
+  try{const j=await fsList(COL.p);users=(j.documents||[]).map(parseUser).filter(u=>u.st).sort(byName);usersState="ok";LS.set("sq.users",users);
+    if(cur){const c=users.find(u=>u.pid===cur.pid);if(c&&!dirty)cur.st=c.st}}
+  catch(e){usersState="err"}
+  if(view==="users"||view==="compare")render()}
+async function pickUser(pid){
+  const u=users.find(x=>x.pid===pid);if(!u)return;
+  if(cur&&dirty)await flush();
+  view="loading";render();
+  let R=LS.get("sq.rec."+pid,{});
+  try{const doc=await fsGet(COL.r+"/"+pid);if(doc){try{R=mergeRec(R,JSON.parse(fv(doc,"data")))}catch(e){}}setSync("ok")}
+  catch(e){setSync("off");toast("オフラインです。端末内の記録で続けます")}
+  cur=u;rec=R;dirty=false;LS.set("sq.pid",pid);LS.set("sq.rec."+pid,rec);
+  view="home";render();
+  if(syncState==="off"){dirty=true}}
+async function createUser(name){
+  const pid=rid(),now=new Date().toISOString(),st=metrics({});
+  try{await fsSet(COL.r+"/"+pid,{data:"{}",updated:now});await fsSet(COL.p+"/"+pid,{name,stats:JSON.stringify(st),updated:now,hidden:"0"});
+    users.push({pid,name,updated:now,st});users.sort(byName);LS.set("sq.users",users);toast("追加しました");pickUser(pid)}
+  catch(e){toast("追加できませんでした(通信を確認してください)")}}
+
+/* ===== 画面 ===== */
+let view="users",F={name:"",sec:-1,mode:"resume",num:0},S=null;
+function render(){
+  const v={loading:()=>`<p class="sub">読み込み中…</p>`,users:vUsers,home:vHome,quiz:vQuiz,result:vResult,compare:vCompare,stats:vStats}[view];
+  $("app").innerHTML=v();window.scrollTo(0,0);
+  const nm=$("newname");if(nm)nm.oninput=()=>{F.name=nm.value}}
+function vUsers(){
+  const rows=users.map(u=>{const m=u.st||{};return`<button class="btn" data-a="pick" data-id="${u.pid}"><b>${esc(u.name)}</b><br><span class="st">正解扱い ${m.c||0}/${m.tot||ALL.length}問 (${pct(m.c||0,m.tot||ALL.length)}%) ・ 解答済み ${m.seen||0}問</span></button>`}).join("");
+  const nxt="ユーザー"+(users.length+1);if(!F.name)F.name=nxt;
+  return`<h1>瀬藤分 解剖学クイズ</h1><p class="sub">${ALL.length}問 ・ ユーザーを選んでください。記録はクラウドに保存されます。</p>
+  ${usersState==="load"&&!users.length?`<p class="sub">読み込み中…</p>`:""}
+  ${usersState==="err"?`<p class="sub" style="color:var(--ng)">通信できませんでした。端末に残っているユーザーを表示しています。</p><button class="btn" data-a="reload">再読み込み</button>`:""}
+  ${rows}
+  <div class="card"><h2>新しいユーザー</h2><input id="newname" type="text" maxlength="12" value="${esc(F.name)}"><button class="btn p" data-a="add">追加して始める</button></div>
+  ${users.length?`<button class="link" data-a="go" data-v="compare">ユーザー比較</button>`:""}`}
+function vHome(){
+  const m=metrics(rec),w=m.w,un=m.tot-m.seen;
+  const modes=[["resume","つづきから","未回答の問題だけ出題します(以前答えた問題はスキップ)。",un],["fresh","初めから","答えた問題も含め、全問をランダムに出題します。",m.tot],["wrong","不正解の復習","不正解の問題だけ出題します。"+NEED+"回正解すると正解扱いになります。",w]];
+  return`<div class="top"><div class="grow"><h1>${esc(cur.name)}</h1><div class="st">${syncTag()}</div></div><button class="link" data-a="go" data-v="users">ユーザー切替</button></div>
+  <div class="card"><div class="row"><div><div class="st">正解扱い</div><b style="font-size:24px">${m.c}</b><span class="st"> / ${m.tot}</span></div><div><div class="st">解答済み</div><b style="font-size:24px">${m.seen}</b></div><div><div class="st">不正解</div><b style="font-size:24px;color:var(--ng)">${w}</b></div></div>
+  <div class="bar" style="margin-top:10px"><i style="width:${pct(m.c,m.tot)}%"></i></div></div>
+  <div class="card"><h2>出題範囲</h2><select id="sec" data-a="sec"><option value="-1">全分野(${ALL.length}問)</option>${D.map((s,i)=>`<option value="${i}" ${F.sec==i?"selected":""}>${esc(s.t)}(${s.q.length}問)</option>`).join("")}</select>
+  <h2 style="margin-top:14px">始め方</h2>${modes.map(([k,t,d,n])=>`<div class="radio ${F.mode===k?"sel":""}" data-a="mode" data-k="${k}"><div><b>${t}</b><small>${d}(${n}問)</small></div></div>`).join("")}
+  <h2 style="margin-top:14px">出題数</h2><select data-a="num">${[[0,"範囲内すべて"],[10,"10問"],[20,"20問"],[50,"50問"]].map(([v,t])=>`<option value="${v}" ${F.num==v?"selected":""}>${t}</option>`).join("")}</select>
+  <button class="btn p" style="margin-top:14px" data-a="start">スタート</button></div>
+  <div class="row"><button class="btn" style="text-align:center" data-a="go" data-v="stats">分野別の成績</button><button class="btn" style="text-align:center" data-a="go" data-v="compare">ユーザー比較</button></div>`}
+function startQuiz(){
+  const inSec=q=>F.sec<0||q.sec==F.sec;
+  let pool=ALL.filter(inSec);
+  if(F.mode==="resume")pool=pool.filter(q=>!rec[q.id]);
+  else if(F.mode==="wrong")pool=pool.filter(q=>rec[q.id]&&rec[q.id].s==="w");
+  if(!pool.length){toast(F.mode==="resume"?"この範囲に未回答の問題はありません":F.mode==="wrong"?"不正解の問題はありません":"問題がありません");return}
+  pool=shuffle(pool);if(F.num>0)pool=pool.slice(0,F.num);
+  S={list:pool,i:0,shown:false,picked:null,opts:null,ok:0,ng:0,wrong:[],mode:F.mode};view="quiz";render()}
+function vQuiz(){
+  const q=S.list[S.i],r=rec[q.id],tag=r&&r.s==="w"?`<span class="tag err">不正解中 あと${r.need}回</span>`:r&&r.s==="c"?`<span class="tag ok">正解扱い</span>`:`<span class="tag">未回答</span>`;
+  if(q.o&&!S.opts)S.opts=shuffle(q.o);
+  let body="";
+  if(q.o){body=S.opts.map((o,k)=>{let c="";if(S.shown){if(o[1])c="ok";else if(S.picked===k)c="ng"}return`<button class="btn ${c}" data-a="pickopt" data-k="${k}" ${S.shown?"disabled":""}>${esc(o[0])}</button>`}).join("")}
+  else if(!S.shown)body=`<button class="btn p" data-a="show">答えを表示</button>`;
+  let ans="";
+  if(S.shown)ans=`<div class="ans"><b>${esc(q.a)}</b>${q.e?`<div class="e">${esc(q.e)}</div>`:""}</div>`;
+  let foot="";
+  if(S.shown){
+    if(q.o)foot=`<button class="btn p" data-a="next">${S.i+1<S.list.length?"次の問題へ":"結果を見る"}</button>`;
+    else if(!S.judged)foot=`<div class="row"><button class="gbtn gok" data-a="judge" data-v="1">正解</button><button class="gbtn gng" data-a="judge" data-v="0">不正解</button></div>`;
+    else foot=`<button class="btn p" data-a="next">${S.i+1<S.list.length?"次の問題へ":"結果を見る"}</button>`}
+  return`<div class="top"><button class="link" data-a="quit">‹ やめる</button><div class="grow st" style="text-align:right">${S.i+1} / ${S.list.length} ・ ${syncTag()}</div></div>
+  <div class="bar"><i style="width:${S.i/S.list.length*100}%"></i></div>
+  <div class="card"><div class="st">${tag} ${esc(SECS[q.sec])}${q.s?" ・ "+esc(q.s):""}</div><div class="q">${esc(q.q)}</div>${q.i?`<img class="fg" src="figs/${q.i}.jpg" alt="図">`:""}${body}${ans}</div>${foot}`}
+function answer(ok){
+  const q=S.list[S.i];record(q.id,ok);S.judged=true;
+  if(ok)S.ok++;else{S.ng++;S.wrong.push(q)}
+  const r=rec[q.id];
+  if(ok&&r.s==="w")toast("正解！ あと"+r.need+"回で正解扱い");
+  else if(ok)toast("正解 ○");else toast("不正解 ×(あと"+NEED+"回の正解が必要)");
+  render()}
+function vResult(){
+  const n=S.ok+S.ng;
+  return`<h1>結果</h1><div class="card"><b style="font-size:30px">${S.ok} / ${n}</b> 正解 (${pct(S.ok,n)}%)<div class="bar" style="margin-top:10px"><i style="width:${pct(S.ok,n)}%"></i></div></div>
+  ${S.wrong.length?`<div class="card"><h2>間違えた問題</h2>${S.wrong.map(q=>`<div style="margin:8px 0"><div>${esc(q.q)}</div><div class="st">答え: <b>${esc(q.a)}</b></div></div>`).join("")}</div>`:`<p class="sub">全問正解です！</p>`}
+  <button class="btn p" data-a="go" data-v="home">ホームへ</button>`}
+function vStats(){
+  const m=metrics(rec);
+  return`<div class="top"><button class="link" data-a="go" data-v="home">‹ 戻る</button><h2 class="grow">分野別の成績</h2></div>
+  ${D.map((s,i)=>{const x=m.secs[i];return`<div class="card" style="padding:12px"><b>${esc(s.t)}</b><div class="st">正解扱い ${x[1]} / ${x[2]}問 ・ 解答済み ${x[0]}問</div><div class="bar"><i style="width:${pct(x[1],x[2])}%"></i></div></div>`}).join("")}`}
+function vCompare(){
+  const list=users.filter(u=>u.st);
+  if(usersState==="load"&&!list.length)return`<p class="sub">読み込み中…</p>`;
+  const rows=list.map(u=>{const m=u.st;return{u,m,rate:pct(m.c,m.tot),acc:pct(m.hit!=null?m.hit:0,m.att)}}).sort((a,b)=>b.m.c-a.m.c||b.m.seen-a.m.seen);
+  const me=cur&&cur.pid;
+  return`<div class="top"><button class="link" data-a="go" data-v="${cur?"home":"users"}">‹ 戻る</button><h2 class="grow">ユーザー比較</h2><button class="link" data-a="reload">更新</button></div>
+  <div class="card scroll"><table><tr><th>名前</th><th>正解扱い</th><th>達成率</th><th>解答済み</th><th>不正解</th></tr>
+  ${rows.map(({u,m,rate})=>`<tr class="${u.pid===me?"me":""}"><td>${esc(u.name)}</td><td>${m.c}/${m.tot}</td><td>${rate}%</td><td>${m.seen}</td><td>${m.w}</td></tr>`).join("")}</table></div>
+  <div class="card scroll"><h2>分野別の正解扱い率</h2><table><tr><th>分野</th>${rows.map(r=>`<th>${esc(r.u.name)}</th>`).join("")}</tr>
+  ${D.map((s,i)=>`<tr><td>${esc(s.t.replace("【図】","図:"))}</td>${rows.map(r=>{const x=r.m.secs&&r.m.secs[i];return`<td>${x?pct(x[1],x[2])+"%":"–"}</td>`}).join("")}</tr>`).join("")}</table></div>`}
+
+/* ===== イベント ===== */
+$("app").addEventListener("click",async e=>{
+  const t=e.target.closest("[data-a]");if(!t)return;const a=t.dataset.a;
+  switch(a){
+    case"pick":pickUser(t.dataset.id);break;
+    case"add":{const n=(F.name||"").trim();if(!n){toast("名前を入力してください");break}F.name="";createUser(n);break}
+    case"reload":loadUsers();break;
+    case"go":view=t.dataset.v;render();if(view==="users"||view==="compare")loadUsers();break;
+    case"mode":F.mode=t.dataset.k;render();break;
+    case"start":startQuiz();break;
+    case"show":S.shown=true;render();break;
+    case"pickopt":{if(S.shown)break;const k=+t.dataset.k,q=S.list[S.i];S.picked=k;S.shown=true;S.judged=true;answer(S.opts[k][1]);break}
+    case"judge":answer(t.dataset.v==="1");break;
+    case"next":if(S.i+1<S.list.length){S.i++;S.shown=false;S.judged=false;S.picked=null;S.opts=null;view="quiz"}else view="result";render();break;
+    case"quit":if(confirm("途中でやめますか？(ここまでの記録は保存されています)")){flush();view="home";render()}break}});
+$("app").addEventListener("change",e=>{
+  const t=e.target.closest("[data-a]");if(!t)return;
+  if(t.dataset.a==="sec"){F.sec=+t.value;render()}
+  if(t.dataset.a==="num"){F.num=+t.value;render()}});
+
+/* ===== 起動 ===== */
+render();loadUsers();
+</script></body></html>

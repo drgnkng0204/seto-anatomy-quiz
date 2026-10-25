@@ -1,0 +1,49 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===== 瀬藤分クイズ(このアプリ) =====
+    // 成績(名前・統計のみ。誰でも読める)
+    match /seto_profiles/{id} {
+      allow read: if true;
+      allow create, update: if id.size() >= 16 && id.size() <= 40
+        && request.resource.data.keys().hasOnly(['name', 'stats', 'updated', 'hidden'])
+        && request.resource.data.name is string && request.resource.data.name.size() <= 20
+        && request.resource.data.stats is string && request.resource.data.stats.size() < 8000
+        && request.resource.data.updated is string
+        && request.resource.data.hidden is string;
+      allow delete: if false;
+    }
+    // 解答履歴(ユーザーIDを知っている場合のみ取得可。一覧は不可)
+    match /seto_records/{id} {
+      allow get: if true;
+      allow list: if false;
+      allow create, update: if id.size() >= 16 && id.size() <= 40
+        && request.resource.data.keys().hasOnly(['data', 'updated'])
+        && request.resource.data.data is string && request.resource.data.data.size() < 900000
+        && request.resource.data.updated is string;
+      allow delete: if false;
+    }
+
+    // ===== 既存アプリ(解剖過去問クイズ。同じプロジェクトを共用しているため残す) =====
+    match /profiles/{id} {
+      allow read: if true;
+      allow create, update: if id.size() >= 16 && id.size() <= 40
+        && request.resource.data.keys().hasOnly(['name', 'stats', 'updated', 'hidden'])
+        && request.resource.data.name is string && request.resource.data.name.size() <= 20
+        && request.resource.data.stats is string && request.resource.data.stats.size() < 8000
+        && request.resource.data.updated is string
+        && request.resource.data.hidden is string;
+      allow delete: if false;
+    }
+    match /records/{id} {
+      allow get: if true;
+      allow list: if false;
+      allow create, update: if id.size() >= 16 && id.size() <= 40
+        && request.resource.data.keys().hasOnly(['data', 'updated'])
+        && request.resource.data.data is string && request.resource.data.data.size() < 900000
+        && request.resource.data.updated is string;
+      allow delete: if false;
+    }
+  }
+}
