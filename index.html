@@ -187,7 +187,7 @@ function vQuiz(){
 function refsOf(q){
   if(!q.p||!q.p.length)return"";
   const pg=n=>"pages/p"+String(n).padStart(2,"0")+".jpg";
-  return`<div class="refs"><div class="st">📖 まとめ(Ver2)の該当ページ ・ タップで拡大</div>${q.p.map(n=>`<a href="${pg(n)}" target="_blank" rel="noopener"><div class="st">p.${n}</div><img class="pg" loading="lazy" src="${pg(n)}" alt="まとめ p.${n}"></a>`).join("")}</div>`}
+  return`<div class="refs"><div class="st">📖 まとめ(最新版)の該当ページ ・ タップで拡大</div>${q.p.map(n=>`<a href="${pg(n)}" target="_blank" rel="noopener"><div class="st">p.${n}</div><img class="pg" loading="lazy" src="${pg(n)}" alt="まとめ p.${n}"></a>`).join("")}</div>`}
 function answer(ok){
   const q=S.list[S.i];record(q.id,ok);S.judged=true;
   if(ok)S.ok++;else{S.ng++;S.wrong.push(q)}
