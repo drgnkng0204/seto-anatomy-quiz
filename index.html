@@ -22,6 +22,10 @@ button,select,input{font:inherit;color:var(--fg)}
 .gok{background:var(--ok)}.gng{background:var(--ng)}
 input[type=text],select{width:100%;min-height:46px;padding:8px 12px;border:1px solid var(--bd);border-radius:10px;background:var(--card)}
 .radio{display:flex;gap:10px;align-items:flex-start;padding:10px;border:1px solid var(--bd);border-radius:12px;margin:8px 0;cursor:pointer}
+.seclist{max-height:46vh;overflow-y:auto;border:1px solid var(--bd);border-radius:12px;padding:4px 8px}
+.chk{display:flex;gap:10px;align-items:center;padding:9px 4px;border-bottom:1px solid var(--bd);cursor:pointer}.chk:last-child{border:0}
+.chk .bx{width:22px;height:22px;border:2px solid var(--bd);border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-weight:700;flex:none}
+.chk.sel .bx{background:var(--ac);border-color:var(--ac);color:#fff}.chk small{color:var(--mut)}
 .radio.sel{border-color:var(--ac);background:rgba(27,109,140,.12)}
 .radio b{display:block}.radio small{color:var(--mut)}
 .tag{font-size:12px;padding:2px 8px;border-radius:99px;border:1px solid var(--bd);color:var(--mut)}
@@ -134,7 +138,7 @@ async function createUser(name){
   catch(e){toast("追加できませんでした(通信を確認してください)")}}
 
 /* ===== 画面 ===== */
-let view="users",F={name:"",sec:-1,mode:"resume",num:0},S=null;
+let view="users",F={name:"",secs:(LS.get("sq.secs")||[]).filter(i=>i>=0&&i<D.length),mode:"resume",num:0},S=null;
 function render(){
   const v={loading:()=>`<p class="sub">読み込み中…</p>`,users:vUsers,home:vHome,quiz:vQuiz,result:vResult,compare:vCompare,stats:vStats}[view];
   $("app").innerHTML=v();window.scrollTo(0,0);
@@ -154,13 +158,16 @@ function vHome(){
   return`<div class="top"><div class="grow"><h1>${esc(cur.name)}</h1><div class="st">${syncTag()}</div></div><button class="link" data-a="go" data-v="users">ユーザー切替</button></div>
   <div class="card"><div class="row"><div><div class="st">正解扱い</div><b style="font-size:24px">${m.c}</b><span class="st"> / ${m.tot}</span></div><div><div class="st">解答済み</div><b style="font-size:24px">${m.seen}</b></div><div><div class="st">不正解</div><b style="font-size:24px;color:var(--ng)">${w}</b></div></div>
   <div class="bar" style="margin-top:10px"><i style="width:${pct(m.c,m.tot)}%"></i></div></div>
-  <div class="card"><h2>出題範囲</h2><select id="sec" data-a="sec"><option value="-1">全分野(${ALL.length}問)</option>${D.map((s,i)=>`<option value="${i}" ${F.sec==i?"selected":""}>${esc(s.t)}(${s.q.length}問)</option>`).join("")}</select>
+  <div class="card"><h2>出題範囲(複数選択できます)</h2>
+  <div class="row" style="gap:8px;margin-bottom:6px"><button class="btn" style="text-align:center;min-height:38px;margin:0" data-a="secall">すべて選択</button><button class="btn" style="text-align:center;min-height:38px;margin:0" data-a="secnone">選択を解除</button></div>
+  <div class="st" style="margin:4px 0">${F.secs.length?`選択中 ${F.secs.length}章 ・ ${ALL.filter(q=>F.secs.includes(q.sec)).length}問`:`未選択 = 全分野 ・ ${ALL.length}問`}</div>
+  <div class="seclist">${D.map((s,i)=>`<div class="chk ${F.secs.includes(i)?"sel":""}" data-a="sectog" data-i="${i}"><span class="bx">${F.secs.includes(i)?"✓":""}</span><span class="grow">${esc(s.t)}</span><small>${s.q.length}問</small></div>`).join("")}</div>
   <h2 style="margin-top:14px">始め方</h2>${modes.map(([k,t,d,n])=>`<div class="radio ${F.mode===k?"sel":""}" data-a="mode" data-k="${k}"><div><b>${t}</b><small>${d}(${n}問)</small></div></div>`).join("")}
   <h2 style="margin-top:14px">出題数</h2><select data-a="num">${[[0,"範囲内すべて"],[10,"10問"],[20,"20問"],[50,"50問"]].map(([v,t])=>`<option value="${v}" ${F.num==v?"selected":""}>${t}</option>`).join("")}</select>
   <button class="btn p" style="margin-top:14px" data-a="start">スタート</button></div>
   <div class="row"><button class="btn" style="text-align:center" data-a="go" data-v="stats">分野別の成績</button><button class="btn" style="text-align:center" data-a="go" data-v="compare">ユーザー比較</button></div>`}
 function startQuiz(){
-  const inSec=q=>F.sec<0||q.sec==F.sec;
+  const inSec=q=>!F.secs.length||F.secs.includes(q.sec);
   let pool=ALL.filter(inSec);
   if(F.mode==="resume")pool=pool.filter(q=>!rec[q.id]);
   else if(F.mode==="wrong")pool=pool.filter(q=>rec[q.id]&&rec[q.id].s==="w");
@@ -224,6 +231,9 @@ $("app").addEventListener("click",async e=>{
     case"reload":loadUsers();break;
     case"go":view=t.dataset.v;render();if(view==="users"||view==="compare")loadUsers();break;
     case"mode":F.mode=t.dataset.k;render();break;
+    case"sectog":{const i=+t.dataset.i,k=F.secs.indexOf(i);if(k<0)F.secs.push(i);else F.secs.splice(k,1);LS.set("sq.secs",F.secs);const y=window.scrollY;render();window.scrollTo(0,y);break}
+    case"secall":F.secs=D.map((_,i)=>i);LS.set("sq.secs",F.secs);{const y=window.scrollY;render();window.scrollTo(0,y)}break;
+    case"secnone":F.secs=[];LS.set("sq.secs",F.secs);{const y=window.scrollY;render();window.scrollTo(0,y)}break;
     case"start":startQuiz();break;
     case"show":S.shown=true;render();break;
     case"pickopt":{if(S.shown)break;const k=+t.dataset.k,q=S.list[S.i];S.picked=k;S.shown=true;S.judged=true;answer(S.opts[k][1]);break}
@@ -232,7 +242,6 @@ $("app").addEventListener("click",async e=>{
     case"quit":if(confirm("途中でやめますか？(ここまでの記録は保存されています)")){flush();view="home";render()}break}});
 $("app").addEventListener("change",e=>{
   const t=e.target.closest("[data-a]");if(!t)return;
-  if(t.dataset.a==="sec"){F.sec=+t.value;render()}
   if(t.dataset.a==="num"){F.num=+t.value;render()}});
 
 /* ===== 起動 ===== */
